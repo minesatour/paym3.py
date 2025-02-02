@@ -1,0 +1,15 @@
+# Ignore Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore environment files
+.env
+venv/
+
+# Ignore logs and cache
+*.log
+*.cache
+
+# Ignore saved session cookies (security risk)
+paypal_cookies.json
