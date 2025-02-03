@@ -96,6 +96,9 @@ def browser_automation_attack(email, password):
     password_input.send_keys(password)
     stealth_delay()
 
+    # Log the entered password for debugging (This will print the password to the console for debugging purposes, remove in production)
+    print(f"[DEBUG] Entered Password: {password}")
+
     # Wait for the 'Login' button to be clickable and click it
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "btnLogin")))
     login_button = driver.find_element(By.ID, "btnLogin")
@@ -125,7 +128,7 @@ def browser_automation_attack(email, password):
 def main():
     print("PayPal Security Testing Script")
     email = input("Enter PayPal email: ")
-    password = getpass("Enter PayPal password (will be visible as you type): ")
+    password = input("Enter PayPal password (will be visible as you type): ")  # Replacing getpass with input for better visibility
 
     driver = browser_automation_attack(email, password)
     if driver:
